@@ -1,0 +1,305 @@
+```{r cohortStats, echo=FALSE, eval=TRUE}
+library(ggplot2)
+cohortStats <- read.table("cohortStats.csv",header=TRUE,sep=",")
+names(cohortStats) <- c('Patient ID','Risk','mRNA Cluster','Vital Status','Days_to_Death','Days_to_Last_Followup','Age','ER','Stage','Path_T')
+
+cohortAges <- cohortStats[,c('Risk','Age','Stage')]
+
+cohortAges$Risk[cohortAges$Risk == 1] <- "High"
+cohortAges$Risk[cohortAges$Risk == 0] <- "Low"
+cohortAges$Risk <- as.factor(cohortAges$Risk)
+cohortAges$Stat <- as.factor(rep("Age",length(cohortAges$`Risk`)))
+
+
+#cohortAges_dup <- cohortAges
+#cohortAges_dup$Risk <- rep('all',length(cohortAges_dup$Risk))
+#cohortAges <- rbind(cohortAges,cohortAges_dup)
+
+ggplot(cohortAges,aes(x=Risk,y=Age)) +
+  geom_boxplot(aes(fill=Risk)) +
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1) +
+  theme_classic() + 
+  theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=14,face="bold")) +
+  #theme(axis.text.x = element_text(angle = 90)) +
+  ggtitle("Distribution of Age at Diagnosis")
+
+t.test(cohortStats$Age[cohortStats$Risk==1],cohortStats$Age[cohortStats$Risk==0])
+
+for(stageGroup in unique(cohortAges$Stage)){
+  cohortAges_stage <- subset(cohortAges,Stage == stageGroup)
+  plt <- ggplot(cohortAges_stage,aes(x=Risk,y=Age)) +
+    geom_boxplot(aes(fill=Risk)) +
+    geom_dotplot(binaxis='y', stackdir='center', dotsize=1) +
+    theme_classic() + 
+    theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=14,face="bold")) +
+    #theme(axis.text.x = element_text(angle = 90)) +
+    ggtitle(paste("Distribution of Age at ",stageGroup,sep=""))
+  print(plt)
+  if(length(cohortAges_stage$Age[cohortAges_stage$Risk=='High'])>1 &
+     length(cohortAges_stage$Age[cohortAges_stage$Risk=='Low'])>1){
+    print(t.test(cohortAges_stage$Age[cohortAges_stage$Risk=='High'],
+                 cohortAges_stage$Age[cohortAges_stage$Risk=='Low']))
+  }
+}
+
+```
+
+```{r plotStatus,echo=FALSE,eval=TRUE}
+library(ggplot2)
+cohortStats <- read.table("cohortStats.csv",header=TRUE,sep=",")
+names(cohortStats) <- c('Patient ID','Risk','mRNA Cluster','Vital Status','Days_to_Death','Days_to_Last_Followup','Age','ER','Stage','Path_T')
+
+cohortStats$Risk[cohortStats$Risk == 1] <- "High"
+cohortStats$Risk[cohortStats$Risk == 0] <- "Low"
+cohortStats$Risk <- as.factor(cohortStats$Risk)
+ggplot(cohortStats,aes(x=Stage,fill=Risk)) +
+  geom_histogram(stat="count",position="dodge") +
+  theme_classic() + 
+  theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=14,face="bold"),
+        axis.text.x = element_text(angle = 90)) +
+  ggtitle("Distribution of Stage")
+
+ggplot(cohortStats,aes(x=ER,fill=Risk)) +
+  geom_histogram(stat="count",position="dodge") +
+  theme_classic() + 
+  theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=14,face="bold")) +
+  #theme(axis.text.x = element_text(angle = 90)) +
+  ggtitle("Distribution of ER")
+
+
+ggplot(cohortStats,aes(x=Path_T,fill=Risk)) +
+  geom_histogram(stat="count",position="dodge") +
+  theme_classic() + 
+  theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=14,face="bold")) +
+  #theme(axis.text.x = element_text(angle = 90)) +
+  ggtitle("Distribution of Stage")
+
+
+
+
+```
+
+```{r plotSurvival,echo=FALSE,eval=TRUE}
+library(ggplot2)
+cohortStats <- read.table("cohortStats.csv",header=TRUE,sep=",")
+names(cohortStats) <- c('Patient ID','Risk','mRNA Cluster','Vital Status','Days_to_Death','Days_to_Last_Followup','Age','ER','Stage','Path_T')
+
+cohortStats$Risk[cohortStats$Risk == 1] <- "High"
+cohortStats$Risk[cohortStats$Risk == 0] <- "Low"
+cohortStats$Risk <- as.factor(cohortStats$Risk)
+
+cohortStats$days_combined = rep(0,length(cohortStats$Risk))
+cohortStats$days_combined[!is.na(cohortStats$Days_to_Death)] =
+  cohortStats$Days_to_Death[!is.na(cohortStats$Days_to_Death)]
+cohortStats$days_combined[!is.na(cohortStats$Days_to_Last_Followup)] =
+  cohortStats$Days_to_Last_Followup[!is.na(cohortStats$Days_to_Last_Followup)]
+
+ggplot(cohortStats,aes(x=Risk,y=days_combined)) +
+  geom_boxplot(aes(fill=Risk)) +
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1) +
+  theme_classic() + 
+  theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=14,face="bold")) +
+  #theme(axis.text.x = element_text(angle = 90)) +
+  ggtitle("Distribution of Survival Proxy")
+
+t.test(cohortStats$days_combined[cohortStats$Risk=='High'],cohortStats$days_combined[cohortStats$Risk=='Low'])
+
+```
+
+```{r plotROC,eval=TRUE,echo=FALSE}
+
+library(ggplot2)
+
+allROC <- read.table("allROC.csv",sep=",",header=TRUE)
+allROC$rocGroup <- paste(allROC$Dataset,
+                         allROC$Gene.List,
+                         allROC$Model,
+                         sep="-")
+
+
+for(geneList in unique(allROC$Gene.List)){
+  allROC.geneList = subset(allROC, Gene.List == geneList)
+  rocPlot <- ggplot(allROC.geneList,aes(x=FPR,y=TPR,
+                                        group=rocGroup,
+                                        color=Dataset,
+                                        linetype=Model
+                                        )) + 
+    geom_line(size=0.5) +
+    scale_linetype_manual(values=c("longdash", "dotted","dotdash","solid")) +
+    geom_abline(intercept=0,slope=1)+
+    theme_classic() + 
+    ggtitle(geneList)
+    
+  
+  print(rocPlot)
+}
+```
+
+```{r plotCM,eval=TRUE,echo=FALSE}
+library(caret)
+cmData <- read.table("probaTables/Multiomics.mRNA Var.proba.csv",sep=",",header=TRUE)
+
+model = "RF"
+threshold = 0.5
+trueLabel <- as.factor(cmData$Severity == 1)
+predLabel <-  as.factor(cmData[[model]] > threshold)
+ 
+cm <- confusionMatrix(predLabel,reference = trueLabel)
+colnames(cm$table) <- c("low","High")
+rownames(cm$table) <- c("low","High")
+
+fourfoldplot(cm$table, color = c("LightBlue","DarkBlue"),
+             conf.level=0,
+             margin =1,
+             main="Risk of Severe Disease")
+
+```
+
+
+```{r plotExpression_mRNA, eval=TRUE,echo=FALSE}
+mrnaVarGenes <- c('CLEC3A', 'CPB1', 'SCGB2A2', 'CSN3',
+                  'S100A7', 'MAGEA6', 'GSTM1','PRAME', 'KCNJ3', 'CYP2B7P1',
+                  'SERPINA6', 'PIP', 'GABRP', 'MSLN',
+                  'TFF1', 'DHRS2', 'C4orf7', 'SCGB1D2', 'MAGEA3', 'HORMAD1')
+
+
+features <- read.table("breastCancer_mrnaData.csv",sep=',',header=TRUE)
+varGenes_high <- features[features$Severity == 1,names(features) %in% mrnaVarGenes]
+varGenes_high <- stack(varGenes_high)
+names(varGenes_high) <- c("Expr","GeneID")
+varGenes_high$Risk <- rep("High",length(varGenes_high$Expr))
+
+varGenes_low <- features[features$Severity == 0,names(features) %in% mrnaVarGenes]
+varGenes_low <- stack(varGenes_low)
+names(varGenes_low) <- c("Expr","GeneID")
+varGenes_low$Risk <- rep("Low",length(varGenes_high$Expr))
+
+varGenes = rbind(varGenes_high,varGenes_low)
+
+ggplot(varGenes,aes(x=GeneID,y=Expr,fill=Risk)) +
+  geom_boxplot() +
+  theme_classic() + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  ggtitle("Distribution of High Variance Gene Expression")
+
+
+```
+
+```{r plotExpression_meth, eval=TRUE,echo=FALSE}
+methVarGenes <- c('OR2M7', 'OR4L1', 'OR5AK2', 'SAMSN1', 'MIR320C1',
+                  'MIR563', 'SLC5A12', 'OR5B3', 'OR1J4', 'CTSW',
+                  'MNDA', 'OR2T29', 'OR5T2', 'LOC100130331', 'FLJ41856',
+                  'OR10AG1', 'NCRNA00158', 'OR5M11', 'KRTAP21-2', 'OR6N2')
+
+
+features <- read.table("breastCancer_mrnaData.csv",sep=',',header=TRUE)
+varGenes_high <- features[features$Severity == 1,names(features) %in% methVarGenes]
+varGenes_high <- stack(varGenes_high)
+names(varGenes_high) <- c("Expr","GeneID")
+varGenes_high$Risk <- rep("High",length(varGenes_high$Expr))
+
+varGenes_low <- features[features$Severity == 0,names(features) %in% methVarGenes]
+varGenes_low <- stack(varGenes_low)
+names(varGenes_low) <- c("Expr","GeneID")
+varGenes_low$Risk <- rep("Low",length(varGenes_high$Expr))
+
+varGenes = rbind(varGenes_high,varGenes_low)
+
+ggplot(varGenes,aes(x=GeneID,y=Expr,fill=Risk)) +
+  geom_boxplot() +
+  theme_classic() + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  ggtitle("Distribution of High Variance Gene Expression")
+
+
+```
+
+```{r plotExpression_prot, eval=TRUE,echo=FALSE}
+protVarGenes <- c('ESR1', 'PGR', 'MYH11', 'EPPK1', 'GATA3', 'FASN', 'CAV1', 'IGFBP2',
+        'KIT', 'ERBB2', 'INPP4B', 'COL6A1', 'HSPA1A', 'GAPDH', 'CCNB1', 'PDCD4',
+        'TUBA1B', 'MAPK1','MAPK3', 'AR', 'SCD')
+
+
+features <- read.table("breastCancer_mrnaData.csv",sep=',',header=TRUE)
+varGenes_high <- features[features$Severity == 1,names(features) %in% protVarGenes]
+varGenes_high <- stack(varGenes_high)
+names(varGenes_high) <- c("Expr","GeneID")
+varGenes_high$Risk <- rep("High",length(varGenes_high$Expr))
+
+varGenes_low <- features[features$Severity == 0,names(features) %in% protVarGenes]
+varGenes_low <- stack(varGenes_low)
+names(varGenes_low) <- c("Expr","GeneID")
+varGenes_low$Risk <- rep("Low",length(varGenes_high$Expr))
+
+varGenes = rbind(varGenes_high,varGenes_low)
+
+ggplot(varGenes,aes(x=GeneID,y=Expr,fill=Risk)) +
+  geom_boxplot() +
+  theme_classic() + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  ggtitle("Distribution of High Variance Gene Expression")
+
+
+```
+
+
+```{r plotExpression_all, eval=TRUE,echo=FALSE,fig.height=2,fig.width=7}
+
+mrnaVarGenes <- c('CLEC3A', 'CPB1', 'SCGB2A2', 'CSN3',
+                  'S100A7', 'MAGEA6', 'GSTM1','PRAME', 'KCNJ3', 'CYP2B7P1',
+                  'SERPINA6', 'PIP', 'GABRP', 'MSLN',
+                  'TFF1', 'DHRS2', 'C4orf7', 'SCGB1D2', 'MAGEA3', 'HORMAD1')
+methVarGenes <- c('OR2M7', 'OR4L1', 'OR5AK2', 'SAMSN1', 'MIR320C1',
+                  'MIR563', 'SLC5A12', 'OR5B3', 'OR1J4', 'CTSW',
+                  'MNDA', 'OR2T29', 'OR5T2', 'LOC100130331', 'FLJ41856',
+                  'OR10AG1', 'NCRNA00158', 'OR5M11', 'KRTAP21-2', 'OR6N2')
+protVarGenes <- c('ESR1', 'PGR', 'MYH11', 'EPPK1', 'GATA3', 'FASN', 'CAV1', 'IGFBP2',
+        'KIT', 'ERBB2', 'INPP4B', 'COL6A1', 'HSPA1A', 'GAPDH', 'CCNB1', 'PDCD4',
+        'TUBA1B', 'MAPK1','MAPK3', 'AR', 'SCD')
+
+allVarGenes <- c(mrnaVarGenes,methVarGenes,protVarGenes)
+
+features <- read.table("breastCancer_mrnaData.csv",sep=',',header=TRUE)
+varGenes_high <- features[features$Severity == 1,names(features) %in% allVarGenes]
+varGenes_high <- stack(varGenes_high)
+names(varGenes_high) <- c("Expr","GeneID")
+varGenes_high$Risk <- rep("High",length(varGenes_high$Expr))
+
+varGenes_low <- features[features$Severity == 0,names(features) %in% allVarGenes]
+varGenes_low <- stack(varGenes_low)
+names(varGenes_low) <- c("Expr","GeneID")
+varGenes_low$Risk <- rep("Low",length(varGenes_high$Expr))
+
+varGenes = rbind(varGenes_high,varGenes_low)
+
+set1 = as.vector(unique(varGenes$GeneID)[1:16])
+set2 = as.vector(unique(varGenes$GeneID)[17:32])
+set3 = as.vector(unique(varGenes$GeneID)[33:48])
+
+varGenes.subset = varGenes[varGenes$GeneID %in% set1,]
+ggplot(varGenes.subset,aes(x=GeneID,y=Expr,fill=Risk)) +
+  geom_boxplot() +
+  theme_classic() + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  ggtitle("Distribution of High Variance Gene Expression")
+
+varGenes.subset = varGenes[varGenes$GeneID %in% set2,]
+ggplot(varGenes.subset,aes(x=GeneID,y=Expr,fill=Risk)) +
+  geom_boxplot() +
+  theme_classic() + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  ggtitle("Distribution of High Variance Gene Expression")
+
+varGenes.subset = varGenes[varGenes$GeneID %in% set3,]
+ggplot(varGenes.subset,aes(x=GeneID,y=Expr,fill=Risk)) +
+  geom_boxplot() +
+  theme_classic() + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  ggtitle("Distribution of High Variance Gene Expression")
+```
